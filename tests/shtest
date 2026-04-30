@@ -243,6 +243,14 @@ cmp $d/out $d/expected
 printf '{/* not closed' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
 grep -q 'Unfinished comment' $d/out
 
+# Lone '/' at EOF is also an unfinished comment
+printf '{"a":1} /' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q 'Unfinished comment' $d/out
+
+# Block comment with trailing '*' but no '/' at EOF is an unfinished comment
+printf '/* x *' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q 'Unfinished comment' $d/out
+
 # A bare '/' (not //, not /*) is an error
 printf '{ "a": 1 } / x' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
 grep -q "Invalid character after '/'" $d/out
