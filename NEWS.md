@@ -3,6 +3,13 @@
 This is a patch release to fix security, performance, and build issues found in 1.8.0.
 Full commit log can be found at <https://github.com/jqlang/jq/compare/jq-1.8.0...jq-1.8.1>.
 
+## CLI changes
+
+- Add `--jsonc` option to parse input as JSONC (JSON with Comments).
+  `//` line comments and `/* ... */` block comments are stripped; jq's
+  output remains standard JSON, so `jq --jsonc . file.jsonc` also acts
+  as a JSONC-to-JSON converter.
+
 ## Security fixes
 
 - CVE-2025-49014: Fix heap use after free in `f_strftime`, `f_strflocaltime`.

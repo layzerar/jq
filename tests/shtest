@@ -212,6 +212,57 @@ if ! x=$($JQ -n "$(printf '1\r\n+\r\n2')") || [ "$x" != '3' ]; then
   exit 1
 fi
 
+## Test JSONC (JSON with comments) support via --jsonc
+
+# Line comments are stripped
+echo '{"a":1}' > $d/expected
+printf '{"a":1} // tail comment\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Block comments (single-line and multi-line) are stripped
+echo '{"a":1}' > $d/expected
+printf '{/*x*/ "a": 1 /* y */}\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+printf '{\n/* multi\n   line */\n"a":1}\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Strings containing // or /* must NOT be treated as comments
+echo '"a//b"' > $d/expected
+printf '"a//b"\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+echo '"a/*b*/"' > $d/expected
+printf '"a/*b*/"\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Trailing line comment without newline at EOF is OK
+echo '{"a":1}' > $d/expected
+printf '{"a":1} //tail' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Unterminated block comment is an error
+printf '{/* not closed' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q 'Unfinished comment' $d/out
+
+# Lone '/' at EOF is also an unfinished comment
+printf '{"a":1} /' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q 'Unfinished comment' $d/out
+
+# Block comment with trailing '*' but no '/' at EOF is an unfinished comment
+printf '/* x *' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q 'Unfinished comment' $d/out
+
+# A bare '/' (not //, not /*) is an error
+printf '{ "a": 1 } / x' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q "Invalid character after '/'" $d/out
+
+# Without --jsonc, comments still cause a parse error (backwards compatible)
+printf '{"a":1}//c\n' | $VALGRIND $Q $JQ -c . > $d/out 2>&1 && exit 1
+
+# --jsonc works in combination with --stream
+printf '[[0],1]\n[[1],2]\n[[1]]\n' > $d/expected
+printf '[1,/*c*/2]' | $VALGRIND $Q $JQ -c --jsonc --stream . > $d/out
+cmp $d/out $d/expected
+
 ## Test streaming parser
 
 ## If we add an option to stream to the `import ... as $symbol;` directive

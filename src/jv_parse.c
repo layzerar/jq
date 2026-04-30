@@ -61,7 +61,11 @@ struct jv_parser {
     JV_PARSER_NORMAL,
     JV_PARSER_STRING,
     JV_PARSER_STRING_ESCAPE,
-    JV_PARSER_WAITING_FOR_RS // parse error, waiting for RS
+    JV_PARSER_WAITING_FOR_RS, // parse error, waiting for RS
+    JV_PARSER_COMMENT_START,  // saw '/', expecting '/' or '*'
+    JV_PARSER_COMMENT_LINE,   // inside // line comment
+    JV_PARSER_COMMENT_BLOCK,  // inside /* block comment
+    JV_PARSER_COMMENT_BLOCK_STAR // inside block comment, just saw '*'
   } st;
   unsigned int last_ch_was_ws:1;
 };
@@ -652,6 +656,37 @@ static pfunc scan(struct jv_parser* p, char ch, jv* out) {
     p->line++;
     p->column = 0;
   }
+  // JSONC: consume in-progress comment characters
+  if (p->st == JV_PARSER_COMMENT_LINE) {
+    if (ch == '\n')
+      p->st = JV_PARSER_NORMAL;
+    p->last_ch_was_ws = 1;
+    return 0;
+  }
+  if (p->st == JV_PARSER_COMMENT_BLOCK) {
+    if (ch == '*')
+      p->st = JV_PARSER_COMMENT_BLOCK_STAR;
+    p->last_ch_was_ws = 1;
+    return 0;
+  }
+  if (p->st == JV_PARSER_COMMENT_BLOCK_STAR) {
+    if (ch == '/')
+      p->st = JV_PARSER_NORMAL;
+    else if (ch != '*')
+      p->st = JV_PARSER_COMMENT_BLOCK;
+    p->last_ch_was_ws = 1;
+    return 0;
+  }
+  if (p->st == JV_PARSER_COMMENT_START) {
+    if (ch == '/')
+      p->st = JV_PARSER_COMMENT_LINE;
+    else if (ch == '*')
+      p->st = JV_PARSER_COMMENT_BLOCK;
+    else
+      return "Invalid character after '/'";
+    p->last_ch_was_ws = 1;
+    return 0;
+  }
   if ((p->flags & JV_PARSE_SEQ)
       && ch == '\036' /* ASCII RS; see draft-ietf-json-sequence-07 */) {
     if (check_truncation(p)) {
@@ -672,6 +707,15 @@ static pfunc scan(struct jv_parser* p, char ch, jv* out) {
   presult answer = 0;
   p->last_ch_was_ws = 0;
   if (p->st == JV_PARSER_NORMAL) {
+    if ((p->flags & JV_PARSE_JSONC) && ch == '/') {
+      // Treat like whitespace for the purposes of finalizing any pending
+      // literal token, then enter comment-start state.
+      TRY(check_literal(p));
+      if (check_done(p, out)) answer = OK;
+      p->st = JV_PARSER_COMMENT_START;
+      p->last_ch_was_ws = 1;
+      return answer;
+    }
     chclass cls = classify(ch);
     if (cls == WHITESPACE)
       p->last_ch_was_ws = 1;
@@ -831,6 +875,17 @@ jv jv_parser_next(struct jv_parser* p) {
     jv_free(value);
     if (p->st == JV_PARSER_WAITING_FOR_RS)
       return make_error(p, "Unfinished abandoned text at EOF at line %d, column %d", p->line, p->column);
+    if (p->st == JV_PARSER_COMMENT_LINE) {
+      // A trailing // line comment with no terminating newline is OK.
+      p->st = JV_PARSER_NORMAL;
+    } else if (p->st == JV_PARSER_COMMENT_START ||
+               p->st == JV_PARSER_COMMENT_BLOCK ||
+               p->st == JV_PARSER_COMMENT_BLOCK_STAR) {
+      value = make_error(p, "Unfinished comment at EOF at line %d, column %d", p->line, p->column);
+      parser_reset(p);
+      p->st = JV_PARSER_WAITING_FOR_RS;
+      return value;
+    }
     if (p->st != JV_PARSER_NORMAL) {
       value = make_error(p, "Unfinished string at EOF at line %d, column %d", p->line, p->column);
       parser_reset(p);
