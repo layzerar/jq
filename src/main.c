@@ -91,6 +91,7 @@ static void usage(int code, int keep_it_short) {
       "      --stream-errors       implies --stream and report parse error as\n"
       "                            an array;\n"
       "      --seq                 parse input/output as application/json-seq;\n"
+      "      --jsonc               parse input as JSONC (JSON with comments);\n"
       "  -f, --from-file           load the filter from a file;\n"
       "  -L, --library-path dir    search modules from the directory;\n"
       "      --arg name value      set $name to the string value;\n"
@@ -450,6 +451,8 @@ int main(int argc, char* argv[]) {
           parser_flags |= JV_PARSE_STREAMING;
         } else if (isoption(&text, 0, "stream-errors", is_short)) {
           parser_flags |= JV_PARSE_STREAMING | JV_PARSE_STREAM_ERRORS;
+        } else if (isoption(&text, 0, "jsonc", is_short)) {
+          parser_flags |= JV_PARSE_JSONC;
         } else if (isoption(&text, 'e', "exit-status", is_short)) {
           options |= EXIT_STATUS;
         } else if (isoption(&text, 0, "args", is_short)) {
