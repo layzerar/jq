@@ -60,6 +60,29 @@ make LDFLAGS=-all-static
 
 If you're not using the latest git version but instead building a released tarball (available on the release page), skip the `autoreconf` step, and flex or bison won't be needed.
 
+#### Building with CMake
+
+A CMake build is also provided as an alternative to autoconf/automake. It
+mirrors the same feature checks and produces the same `jq` executable,
+`libjq` (shared and static) and `libjq.pc` outputs.
+
+```console
+git submodule update --init    # if building from git to get oniguruma
+cmake -S . -B build -DJQ_BUILD_ONIGURUMA=builtin
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+sudo cmake --install build
+```
+
+Useful options (pass with `-D<name>=<value>`):
+
+- `JQ_BUILD_ONIGURUMA` — `auto` (default), `system`, `builtin`, or `off`
+- `JQ_ENABLE_DECNUM` — enable decNumber support (default `ON`)
+- `JQ_ENABLE_ALL_STATIC` — link `jq` fully statically (default `OFF`)
+- `JQ_ENABLE_ASAN` / `JQ_ENABLE_UBSAN` / `JQ_ENABLE_GCOV` — sanitizers and coverage
+- `JQ_BUILD_SHARED_LIB` / `JQ_BUILD_STATIC_LIB` — choose which `libjq` flavors to build
+- `JQ_BUILD_TESTS` — register the test suite with CTest (default `ON`)
+
 ##### Cross-Compilation
 
 For details on cross-compilation, check out the [GitHub Actions file](.github/workflows/ci.yml) and the [cross-compilation wiki page](https://github.com/jqlang/jq/wiki/Cross-compilation).

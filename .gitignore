@@ -58,3 +58,11 @@ cscope.in.out
 cscope.out
 cscope.po.out
 jq.dSYM
+
+# CMake build directories
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
