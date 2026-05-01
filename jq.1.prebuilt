@@ -1,5 +1,5 @@
 .
-.TH "JQ" "1" "May 2025" "" ""
+.TH "JQ" "1" "May 2026" "" ""
 .
 .SH "NAME"
 \fBjq\fR \- Command\-line JSON processor
@@ -161,6 +161,12 @@ Implies \fB\-\-stream\fR\. Invalid JSON inputs produce no error values when \fB\
 .
 .IP
 Use the \fBapplication/json\-seq\fR MIME type scheme for separating JSON texts in jq\'s input and output\. This means that an ASCII RS (record separator) character is printed before each value on output and an ASCII LF (line feed) is printed after every output\. Input JSON texts that fail to parse are ignored (but warned about), discarding all subsequent input until the next RS\. This mode also parses the output of jq without the \fB\-\-seq\fR option\.
+.
+.TP
+\fB\-\-jsonc\fR:
+.
+.IP
+Parse the input as JSONC (JSON with Comments)\. Both \fB//\fR line comments and \fB/* \.\.\. */\fR block comments are stripped before parsing; the rest of the input must be valid JSON\. Comments inside JSON strings are preserved as\-is\. Trailing commas after the last element of an array or object are also accepted\. jq\'s output is always standard JSON, so \fBjq \-\-jsonc \. file\.jsonc\fR doubles as a JSONC\-to\-JSON converter that strips comments and trailing commas\.
 .
 .TP
 \fB\-f\fR / \fB\-\-from\-file\fR:

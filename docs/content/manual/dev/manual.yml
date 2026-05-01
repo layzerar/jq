@@ -226,9 +226,11 @@ sections:
         Parse the input as JSONC (JSON with Comments).  Both `//` line
         comments and `/* ... */` block comments are stripped before
         parsing; the rest of the input must be valid JSON.  Comments
-        inside JSON strings are preserved as-is.  jq's output is always
-        standard JSON, so `jq --jsonc . file.jsonc` doubles as a
-        JSONC-to-JSON converter that strips comments.
+        inside JSON strings are preserved as-is.  Trailing commas after
+        the last element of an array or object are also accepted.  jq's
+        output is always standard JSON, so `jq --jsonc . file.jsonc`
+        doubles as a JSONC-to-JSON converter that strips comments and
+        trailing commas.
 
       * `-f` / `--from-file`:
 

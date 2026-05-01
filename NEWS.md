@@ -6,9 +6,10 @@ Full commit log can be found at <https://github.com/jqlang/jq/compare/jq-1.8.0..
 ## CLI changes
 
 - Add `--jsonc` option to parse input as JSONC (JSON with Comments).
-  `//` line comments and `/* ... */` block comments are stripped; jq's
-  output remains standard JSON, so `jq --jsonc . file.jsonc` also acts
-  as a JSONC-to-JSON converter.
+  `//` line comments and `/* ... */` block comments are stripped, and
+  trailing commas after the last element of an array or object are
+  accepted; jq's output remains standard JSON, so `jq --jsonc . file.jsonc`
+  also acts as a JSONC-to-JSON converter.
 
 ## Security fixes
 
