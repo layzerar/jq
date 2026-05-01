@@ -263,6 +263,50 @@ printf '[[0],1]\n[[1],2]\n[[1]]\n' > $d/expected
 printf '[1,/*c*/2]' | $VALGRIND $Q $JQ -c --jsonc --stream . > $d/out
 cmp $d/out $d/expected
 
+# Trailing comma in arrays and objects is accepted under --jsonc
+echo '[1,2,3]' > $d/expected
+printf '[1,2,3,]\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+echo '{"a":1,"b":2}' > $d/expected
+printf '{"a":1,"b":2,}\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Trailing comma combined with comments and whitespace
+echo '[1,2]' > $d/expected
+printf '[1, 2, /*tail*/ // line\n]\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+echo '{"a":1}' > $d/expected
+printf '{"a":1, /*c*/}\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Nested trailing commas
+echo '{"a":[1,2],"b":{"c":3}}' > $d/expected
+printf '{"a":[1,2,],"b":{"c":3,},}\n' | $VALGRIND $Q $JQ -c --jsonc . > $d/out
+cmp $d/out $d/expected
+
+# Trailing comma works with --stream
+printf '[[0],1]\n[[1],2]\n[[1]]\n' > $d/expected
+printf '[1,2,]' | $VALGRIND $Q $JQ -c --jsonc --stream . > $d/out
+cmp $d/out $d/expected
+printf '[["a"],1]\n[["b"],2]\n[["b"]]\n' > $d/expected
+printf '{"a":1,"b":2,}' | $VALGRIND $Q $JQ -c --jsonc --stream . > $d/out
+cmp $d/out $d/expected
+
+# Without --jsonc, trailing commas are still rejected (backwards compatible)
+printf '[1,2,]' | $VALGRIND $Q $JQ -c . > $d/out 2>&1 && exit 1
+grep -q 'Expected another array element' $d/out
+printf '{"a":1,}' | $VALGRIND $Q $JQ -c . > $d/out 2>&1 && exit 1
+grep -q 'Expected another key-value pair' $d/out
+
+# Multiple consecutive commas remain an error even under --jsonc
+printf '[1,,]' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q "Expected value before ','" $d/out
+printf '{"a":1,,}' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+grep -q "Expected value before ','" $d/out
+# Lone comma in empty container is still an error
+printf '[,]' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+printf '{,}' | $VALGRIND $Q $JQ -c --jsonc . > $d/out 2>&1 && exit 1
+
 ## Test streaming parser
 
 ## If we add an option to stream to the `import ... as $symbol;` directive

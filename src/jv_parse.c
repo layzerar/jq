@@ -212,8 +212,9 @@ static pfunc parse_token(struct jv_parser* p, char ch) {
       p->next = jv_invalid();
     } else {
       if (jv_array_length(jv_copy(p->stack[p->stackpos-1])) != 0) {
-        // this case hits on input like [1,2,3,]
-        return "Expected another array element";
+        // this case hits on input like [1,2,3,]; allowed under JSONC
+        if (!(p->flags & JV_PARSE_JSONC))
+          return "Expected another array element";
       }
     }
     jv_free(p->next);
@@ -234,8 +235,11 @@ static pfunc parse_token(struct jv_parser* p, char ch) {
     } else {
       if (jv_get_kind(p->stack[p->stackpos-1]) != JV_KIND_OBJECT)
         return "Unmatched '}'";
-      if (jv_object_length(jv_copy(p->stack[p->stackpos-1])) != 0)
-        return "Expected another key-value pair";
+      if (jv_object_length(jv_copy(p->stack[p->stackpos-1])) != 0) {
+        // this case hits on input like {"a":1,}; allowed under JSONC
+        if (!(p->flags & JV_PARSE_JSONC))
+          return "Expected another key-value pair";
+      }
     }
     jv_free(p->next);
     p->next = p->stack[--p->stackpos];
@@ -327,7 +331,10 @@ static pfunc stream_token(struct jv_parser* p, char ch) {
         p->output = JV_ARRAY(jv_copy(p->path), p->next);
         p->next = jv_invalid();
       }
-      p->path = jv_array_set(p->path, p->stacklen - 1, jv_null()); // ready for another key:value pair
+      // Under JSONC keep the previous key in the path so a possible
+      // trailing ',}' can emit a correct close event with that key.
+      if (!(p->flags & JV_PARSE_JSONC))
+        p->path = jv_array_set(p->path, p->stacklen - 1, jv_null()); // ready for another key:value pair
       p->last_seen = JV_LAST_COMMA;
     } else {
       assert(k == JV_KIND_NULL);
@@ -342,8 +349,20 @@ static pfunc stream_token(struct jv_parser* p, char ch) {
   case ']':
     if (p->stacklen == 0)
       return "Unmatched ']' at the top-level";
-    if (p->last_seen == JV_LAST_COMMA)
-      return "Expected another array element";
+    if (p->last_seen == JV_LAST_COMMA) {
+      if (!(p->flags & JV_PARSE_JSONC))
+        return "Expected another array element";
+      // Trailing comma under JSONC: rewind the index that ',' incremented
+      // so the close event uses the correct path of the last element.
+      last = jv_array_get(jv_copy(p->path), p->stacklen - 1);
+      if (jv_get_kind(last) == JV_KIND_NUMBER) {
+        int idx = (int)jv_number_value(last);
+        if (idx > 0)
+          p->path = jv_array_set(p->path, p->stacklen - 1, jv_number(idx - 1));
+      }
+      jv_free(last);
+      p->last_seen = JV_LAST_VALUE;
+    }
     if (p->last_seen == JV_LAST_OPEN_ARRAY)
       assert(!jv_is_valid(p->next));
 
@@ -377,8 +396,15 @@ static pfunc stream_token(struct jv_parser* p, char ch) {
   case '}':
     if (p->stacklen == 0)
       return "Unmatched '}' at the top-level";
-    if (p->last_seen == JV_LAST_COMMA)
-      return "Expected another key:value pair";
+    if (p->last_seen == JV_LAST_COMMA) {
+      if (!(p->flags & JV_PARSE_JSONC))
+        return "Expected another key:value pair";
+      // Trailing comma under JSONC: the previous key is still in the path
+      // (we skipped resetting it in the ',' handler), so just treat the
+      // state as if a value had just been seen and let the close emit a
+      // close event with that key.
+      p->last_seen = JV_LAST_VALUE;
+    }
     if (p->last_seen == JV_LAST_OPEN_OBJECT)
       assert(!jv_is_valid(p->next));
 
